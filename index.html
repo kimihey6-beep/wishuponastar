@@ -1,0 +1,327 @@
+<!doctype html>
+<html lang="ms">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+    <title>Wish-Upon-a-Star — for Fadhlin</title>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Dancing+Script:wght@600;700&family=Quicksand:wght@400;600;700&display=swap" rel="stylesheet">
+
+    <style>
+      :root{
+        --soft-purple:#c7b5ff; /* nama Fadhlin */
+        --soft-purple-deep:#a892ff;
+        --bg-deep:#0a0c1a;
+        --bg-mid:#11162a;
+        --accent:#ff86bf;  /* pink lembut untuk highlight */
+        --card:#0e1224cc;
+        --text:#eef0ff;
+        --muted:#9aa0c8;
+      }
+      *{box-sizing:border-box}
+      html,body{height:100%;margin:0}
+      body{
+        font-family:Quicksand, system-ui, Segoe UI, Arial, sans-serif;
+        background:radial-gradient(120% 100% at 50% 0%, var(--bg-mid) 0%, var(--bg-deep) 60%, #070915 100%);
+        color:var(--text); overflow:hidden;
+        -webkit-font-smoothing:antialiased; text-rendering:optimizeLegibility;
+      }
+
+      /* ===== Header ===== */
+      .hud{
+        position:fixed; inset:0 0 auto 0; padding:14px 16px 6px; z-index:4;
+        display:flex; flex-direction:column; align-items:center; gap:6px; pointer-events:none;
+      }
+      .title{
+        pointer-events:auto;
+        display:flex; flex-wrap:wrap; gap:8px; align-items:baseline; justify-content:center;
+        text-align:center; margin:0;
+        font-size:clamp(20px,5.6vw,40px); line-height:1.2; font-weight:700;
+        text-shadow:0 2px 18px #0008;
+      }
+      .title .name{
+        font-family:"Dancing Script", cursive; font-weight:700;
+        font-size:clamp(28px,7.2vw,56px);
+        color:var(--soft-purple);
+        text-shadow:0 0 28px color-mix(in oklab, var(--soft-purple) 35%, transparent);
+      }
+      .subtitle{
+        pointer-events:auto;
+        margin:0; font-weight:700; color:var(--muted); font-size:13px
+      }
+
+      /* ===== Controls ===== */
+      .controls{
+        pointer-events:auto;
+        display:flex; gap:10px; align-items:center; justify-content:center;
+        margin-top:6px;
+      }
+      .btn{
+        appearance:none; border:none; cursor:pointer; font-weight:700;
+        padding:10px 14px; border-radius:999px;
+        background:linear-gradient(180deg, #2a2f57, #1c2145);
+        color:var(--text);
+        outline:1px solid #ffffff1a; box-shadow:0 8px 22px #0008, inset 0 0 0 1px #0008;
+      }
+      .btn:active{ transform:translateY(1px) }
+      .btn.alt{
+        background:linear-gradient(180deg, #ff9dd2, #ff70bb);
+        color:#1b0e19; text-shadow:0 1px 0 #fff8;
+      }
+
+      /* ===== Canvas stars ===== */
+      #sky{
+        position:fixed; inset:0; z-index:1; width:100%; height:100%;
+        display:block; background:transparent;
+      }
+
+      /* ===== Wish bubbles ===== */
+      .wish{
+        position:fixed; z-index:3; max-width:min(76vw, 420px);
+        background:var(--card); backdrop-filter:blur(6px);
+        border:1px solid #ffffff1e; border-radius:14px; padding:10px 14px;
+        box-shadow:0 12px 30px #000a, 0 0 60px #864dff22 inset;
+        transform:translate(-50%, -50%) translateY(16px); opacity:0;
+        will-change:transform, opacity;
+        animation:pop .45s cubic-bezier(.2,.7,.2,1) forwards;
+      }
+      .wish b{ color:var(--soft-purple-deep) }
+      @keyframes pop{
+        from{ opacity:0; transform:translate(-50%,-50%) translateY(16px) scale(.96) }
+        to  { opacity:1; transform:translate(-50%,-50%) translateY(0)    scale(1) }
+      }
+      .fadeOut{ animation:fade 1.2s ease forwards }
+      @keyframes fade{ to{opacity:0; transform:translate(-50%,-50%) translateY(-8px)} }
+
+      /* ===== Hint footer ===== */
+      .footer{
+        position:fixed; inset:auto 0 8px 0; z-index:2; text-align:center;
+        font-size:11px; color:#a5aad9; text-shadow:0 1px 0 #000;
+        opacity:.8; padding:0 10px;
+      }
+
+      /* Accessibility: reduce motion */
+      @media (prefers-reduced-motion: reduce){
+        .wish{ animation:none; opacity:1; transform:translate(-50%,-50%) }
+        .fadeOut{ animation:none; opacity:1 }
+        .btn:active{ transform:none }
+      }
+    </style>
+  </head>
+  <body>
+    <!-- Heads-up display -->
+    <div class="hud">
+      <h1 class="title">
+        Wish-Upon-a-Star for <span class="name">Fadhlin</span>
+      </h1>
+      <p class="subtitle">Tap mana-mana di langit untuk buat hajat & dapat mesej lembut. “Make a wish” → letak di tengah. ✨</p>
+      <div class="controls">
+        <button class="btn alt" id="wishBtn">Make a wish</button>
+        <button class="btn" id="soundBtn" aria-pressed="false">Sound: Off</button>
+      </div>
+    </div>
+
+    <!-- Starfield -->
+    <canvas id="sky" aria-label="Night sky with twinkling stars"></canvas>
+
+    <!-- Footer hint -->
+    <div class="footer">Tip: Dua jari pinch untuk zoom halaman jika nak teks lebih besar.</div>
+
+    <script>
+      /* =========================
+         Starry sky + shooting stars
+         ========================= */
+      const canvas = document.getElementById('sky');
+      const ctx = canvas.getContext('2d', { alpha:true });
+
+      let W=0,H=0, DPR = Math.max(1, Math.min(window.devicePixelRatio||1, 2));
+      function resize(){
+        W = canvas.clientWidth;
+        H = canvas.clientHeight;
+        canvas.width = Math.floor(W * DPR);
+        canvas.height= Math.floor(H * DPR);
+        ctx.setTransform(DPR,0,0,DPR,0,0);
+        initStars(); // re-scatter on resize
+      }
+      window.addEventListener('resize', resize);
+
+      // Stars
+      let stars = [];
+      function initStars(){
+        const count = Math.floor((W*H)/9000); // density
+        stars = new Array(count).fill(0).map(()=>({
+          x: Math.random()*W,
+          y: Math.random()*H,
+          r: Math.random()*1.4 + 0.3,
+          a: Math.random()*0.6 + 0.2,
+          tw: Math.random()*0.02 + 0.005
+        }));
+      }
+
+      // Shooting stars queue
+      const trails = [];
+      function shoot(fromX, fromY, dir = (-Math.PI/3 + (Math.random()*0.4-0.2)) ){
+        const speed = 1200; // px/s
+        trails.push({
+          x: fromX, y: fromY,
+          vx: Math.cos(dir)*speed,
+          vy: Math.sin(dir)*speed,
+          life: 0.6 + Math.random()*0.4, // seconds
+          age: 0
+        });
+      }
+
+      let last=performance.now();
+      function loop(now=performance.now()){
+        const dt = Math.min(0.05, (now-last)/1000); last=now;
+
+        // bg gradient fill (transparent canvas, stars on top of body bg, so skip fill)
+
+        // twinkling stars
+        ctx.clearRect(0,0,W,H);
+        for(const s of stars){
+          s.a += s.tw * (Math.random()>.5?1:-1);
+          s.a = Math.max(.15, Math.min(.95, s.a));
+          ctx.globalAlpha = s.a;
+          ctx.fillStyle = '#cfd6ff';
+          ctx.beginPath();
+          ctx.arc(s.x, s.y, s.r, 0, Math.PI*2);
+          ctx.fill();
+        }
+        ctx.globalAlpha = 1;
+
+        // trails
+        for(let i=trails.length-1;i>=0;i--){
+          const t = trails[i];
+          t.age += dt;
+          if(t.age>t.life){ trails.splice(i,1); continue; }
+          const p = 1 - (t.age/t.life);
+
+          // draw trail
+          const len = 180*(p+0.2);
+          const nx = -t.vx/Math.hypot(t.vx,t.vy);
+          const ny = -t.vy/Math.hypot(t.vx,t.vy);
+          const tx = t.x + nx*len*dt*20;
+          const ty = t.y + ny*len*dt*20;
+
+          const grad = ctx.createLinearGradient(t.x, t.y, t.x+nx*len, t.y+ny*len);
+          grad.addColorStop(0, 'rgba(255,255,255,0.9)');
+          grad.addColorStop(1, 'rgba(199,181,255,0.0)');
+          ctx.strokeStyle = grad;
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.moveTo(t.x, t.y);
+          ctx.lineTo(t.x+nx*len, t.y+ny*len);
+          ctx.stroke();
+
+          // head
+          ctx.fillStyle = 'white';
+          ctx.beginPath(); ctx.arc(t.x, t.y, 2.2, 0, Math.PI*2); ctx.fill();
+
+          // integrate position
+          t.x += t.vx * dt;
+          t.y += t.vy * dt;
+        }
+
+        requestAnimationFrame(loop);
+      }
+
+      // Init
+      resize(); requestAnimationFrame(loop);
+
+      /* =========================
+         Wishes & affirmations
+         ========================= */
+      const WISHES = [
+        "One soft day at a time. <b>You’re doing enough.</b>",
+        "Storms pass. <b>Your sky will clear.</b>",
+        "Small steps count, <b>always</b>.",
+        "Breathe in calm, breathe out worry.",
+        "<b>Kindness to yourself</b> is power.",
+        "You have survived 100% of your rough days.",
+        "Let tonight be gentle. <b>You deserve rest.</b>",
+        "Your smile will come back — <b>and it suits you.</b>",
+        "It’s okay to feel. <b>Feelings move.</b>",
+        "Somebody cares about you. <b>More than you know.</b>",
+        "Tiny hope → big changes. <b>Keep it.</b>",
+        "You’re not alone under this sky."
+      ];
+
+      function showWish(x,y,text){
+        const div = document.createElement('div');
+        div.className = 'wish';
+        div.style.left = x+'px';
+        div.style.top  = y+'px';
+        div.innerHTML = text;
+        document.body.appendChild(div);
+
+        // auto fade after 3.8s
+        setTimeout(()=> div.classList.add('fadeOut'), 3200);
+        setTimeout(()=> div.remove(), 4600);
+      }
+
+      /* =========================
+         Interactions + sound
+         ========================= */
+      let audioCtx = null;
+      let soundOn = false;
+      const soundBtn = document.getElementById('soundBtn');
+      function pling(){
+        if(!audioCtx || !soundOn) return;
+        const ctx = audioCtx;
+        const o = ctx.createOscillator();
+        const g = ctx.createGain();
+
+        // chord-ish sparkle
+        const tones = [659.25, 987.77, 1318.51]; // E5, B5, E6
+        o.frequency.value = tones[Math.floor(Math.random()*tones.length)];
+        o.type = 'sine';
+
+        const now = ctx.currentTime;
+        g.gain.setValueAtTime(0.0001, now);
+        g.gain.linearRampToValueAtTime(0.16, now+0.02);
+        g.gain.exponentialRampToValueAtTime(0.0001, now+0.45);
+
+        o.connect(g); g.connect(ctx.destination);
+        o.start(now); o.stop(now+0.5);
+      }
+
+      soundBtn.addEventListener('click', ()=>{
+        if(!audioCtx){ try{ audioCtx = new (window.AudioContext||window.webkitAudioContext)(); }catch(e){} }
+        soundOn = !soundOn;
+        soundBtn.setAttribute('aria-pressed', String(soundOn));
+        soundBtn.textContent = 'Sound: ' + (soundOn ? 'On' : 'Off');
+        if(soundOn) pling();
+      });
+
+      // Tap/klik pada langit: tembak shooting star dari titik, tunjuk wish berhampiran.
+      function skyEvent(e){
+        const rect = canvas.getBoundingClientRect();
+        const x = e.clientX ?? (e.touches && e.touches[0].clientX);
+        const y = e.clientY ?? (e.touches && e.touches[0].clientY);
+        if(x==null || y==null) return;
+
+        shoot(x, y, -Math.PI/3 + (Math.random()*0.8 - 0.4));
+        const offsetY = Math.max(80, Math.min(H-120, y - 40));
+        showWish(x, offsetY, WISHES[Math.floor(Math.random()*WISHES.length)]);
+        pling();
+      }
+      canvas.addEventListener('pointerdown', skyEvent, {passive:true});
+
+      // Butang "Make a wish": tengah skrin + shooting star dari atas kiri
+      const wishBtn = document.getElementById('wishBtn');
+      wishBtn.addEventListener('click', ()=>{
+        const cx = window.innerWidth/2, cy = window.innerHeight/2;
+        shoot(cx-200, cy-120, -Math.PI/4); // diagonal cantik
+        showWish(cx, cy, WISHES[Math.floor(Math.random()*WISHES.length)]);
+        pling();
+      });
+
+      // First gesture primes audio on iOS
+      window.addEventListener('touchstart', ()=>{ if(!audioCtx && soundOn){ audioCtx = new (window.AudioContext||window.webkitAudioContext)(); } }, {once:true, passive:true});
+    </script>
+  </body>
+</html>
+m:translate(-50%, -50%) translateY(16px
