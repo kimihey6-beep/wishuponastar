@@ -15,7 +15,7 @@
         --soft-purple-deep:#a892ff;
         --bg-deep:#0a0c1a;
         --bg-mid:#11162a;
-        --accent:#ff86bf;  /* pink lembut untuk highlight */
+        --accent:#ff86bf;  /* pink lembut */
         --card:#0e1224cc;
         --text:#eef0ff;
         --muted:#9aa0c8;
@@ -102,11 +102,33 @@
         opacity:.8; padding:0 10px;
       }
 
+      /* ===== Constellation “F” (DOM dots) ===== */
+      .constellation{
+        position:fixed; inset:0; z-index:2; pointer-events:none;
+      }
+      .fstar{
+        position:absolute; width:6px; height:6px; border-radius:50%;
+        background:radial-gradient(circle at 35% 35%, #fff 0 35%, transparent 36%), var(--soft-purple);
+        box-shadow:0 0 12px 3px color-mix(in oklab, var(--soft-purple) 70%, transparent);
+        transform:translate(-50%,-50%) scale(0);
+        opacity:0;
+        animation:twinkleIn .6s ease forwards;
+      }
+      @keyframes twinkleIn{
+        0%{opacity:0; transform:translate(-50%,-50%) scale(.2)}
+        80%{opacity:1; transform:translate(-50%,-50%) scale(1.08)}
+        100%{opacity:1; transform:translate(-50%,-50%) scale(1)}
+      }
+      .fstar.fade{ animation:twinkleOut 1.2s ease forwards }
+      @keyframes twinkleOut{ to{opacity:0; transform:translate(-50%,-50%) scale(.85)} }
+
       /* Accessibility: reduce motion */
       @media (prefers-reduced-motion: reduce){
         .wish{ animation:none; opacity:1; transform:translate(-50%,-50%) }
         .fadeOut{ animation:none; opacity:1 }
         .btn:active{ transform:none }
+        .fstar{ animation:none; opacity:1; transform:translate(-50%,-50%) }
+        .fstar.fade{ opacity:0 }
       }
     </style>
   </head>
@@ -125,6 +147,8 @@
 
     <!-- Starfield -->
     <canvas id="sky" aria-label="Night sky with twinkling stars"></canvas>
+    <!-- Constellation overlay -->
+    <div class="constellation" id="constLayer"></div>
 
     <!-- Footer hint -->
     <div class="footer">Tip: Dua jari pinch untuk zoom halaman jika nak teks lebih besar.</div>
@@ -177,10 +201,9 @@
       function loop(now=performance.now()){
         const dt = Math.min(0.05, (now-last)/1000); last=now;
 
-        // bg gradient fill (transparent canvas, stars on top of body bg, so skip fill)
+        ctx.clearRect(0,0,W,H);
 
         // twinkling stars
-        ctx.clearRect(0,0,W,H);
         for(const s of stars){
           s.a += s.tw * (Math.random()>.5?1:-1);
           s.a = Math.max(.15, Math.min(.95, s.a));
@@ -201,10 +224,8 @@
 
           // draw trail
           const len = 180*(p+0.2);
-          const nx = -t.vx/Math.hypot(t.vx,t.vy);
-          const ny = -t.vy/Math.hypot(t.vx,t.vy);
-          const tx = t.x + nx*len*dt*20;
-          const ty = t.y + ny*len*dt*20;
+          const mag = Math.hypot(t.vx,t.vy)||1;
+          const nx = -t.vx/mag, ny = -t.vy/mag;
 
           const grad = ctx.createLinearGradient(t.x, t.y, t.x+nx*len, t.y+ny*len);
           grad.addColorStop(0, 'rgba(255,255,255,0.9)');
@@ -232,21 +253,33 @@
       resize(); requestAnimationFrame(loop);
 
       /* =========================
-         Wishes & affirmations
+         Wishes & affirmations (BM + English)
          ========================= */
       const WISHES = [
-        "One soft day at a time. <b>You’re doing enough.</b>",
-        "Storms pass. <b>Your sky will clear.</b>",
-        "Small steps count, <b>always</b>.",
-        "Breathe in calm, breathe out worry.",
-        "<b>Kindness to yourself</b> is power.",
-        "You have survived 100% of your rough days.",
-        "Let tonight be gentle. <b>You deserve rest.</b>",
-        "Your smile will come back — <b>and it suits you.</b>",
-        "It’s okay to feel. <b>Feelings move.</b>",
-        "Somebody cares about you. <b>More than you know.</b>",
-        "Tiny hope → big changes. <b>Keep it.</b>",
-        "You’re not alone under this sky."
+        "Cikgu Fadhlin, penat itu tanda kamu sedang beri yang terbaik. Rehat sekejap pun usaha juga. <b>I’m always here for you.</b>",
+        "Anak murid mungkin lupa bab, tapi mereka tak lupa hati cikgu. Go slow, it’s okay. <b>Saya ada, bila-bila.</b>",
+        "Hari susah tak kekal. Ilmu yang Fadhlin tanam kekal lama. Kalau berat, sandar pada saya — <b>I’m here.</b>",
+        "Kebaikan kecil harian cikgu akan jadi besar dalam hidup orang lain. Be gentle with yourself. <b>Saya sentiasa ada.</b>",
+        "You don’t have to be perfect to be amazing. Cukup buat setakat mampu, <b>itu sudah hebat</b>.",
+        "Storms pass. Langit akan cerah semula. <b>Hold on, I’ve got your back.</b>",
+        "Small steps count — langkah kecil pun kemajuan. <b>Proud of you, cikgu.</b>",
+        "Breathe in calm, breathe out worry. <b>Tarik nafas perlahan… lepas perlahan.</b>",
+        "You’re doing your best, and that’s enough. <b>Dalam masa sama, jangan lupa rehat.</b>",
+        "Cikgu, senyuman kamu ubah suasana kelas. <b>Your smile is someone’s sunshine today.</b>",
+        "You are loved more than you know. Ada orang yang selalu ada untuk kamu — <b>termasuk saya.</b>",
+        "Kalau rasa penat, itu normal. <b>Pause sekejap. Sambung bila sedia.</b>",
+        "Kamu sabar dengar anak murid — <b>that patience matters a lot.</b>",
+        "It’s okay to feel. Perasaan datang dan pergi. <b>You’re safe here.</b>",
+        "Let today be soft. <b>Hari ini pelan-pelan, sayang diri dulu.</b>",
+        "You’ve survived every tough day so far. <b>Esok mungkin lebih ringan.</b>",
+        "Ilmu kamu memberi makna. Even on quiet days, <b>your impact remains.</b>",
+        "Aku buat setakat yang mampu, dan itu sudah cukup. <b>(Read this twice.)</b>",
+        "Kemajuan kecil tetap kemajuan — <b>tiny steps still steps.</b>",
+        "Aku layak rehat, aku layak disayangi. <b>I deserve gentleness.</b>",
+        "Aku memberi dengan ikhlas, dan aku juga menjaga diri. <b>Balance matters.</b>",
+        "Kau tak berseorangan — <b>I’m always here to listen, to stay.</b>",
+        "Some days are heavy; let kindness do the lifting. <b>Jadikan hari ini lembut.</b>",
+        "One soft day at a time. <b>You’re doing enough, Fadhlin.</b>"
       ];
 
       function showWish(x,y,text){
@@ -274,7 +307,7 @@
         const o = ctx.createOscillator();
         const g = ctx.createGain();
 
-        // chord-ish sparkle
+        // sparkle chord
         const tones = [659.25, 987.77, 1318.51]; // E5, B5, E6
         o.frequency.value = tones[Math.floor(Math.random()*tones.length)];
         o.type = 'sine';
@@ -296,15 +329,14 @@
         if(soundOn) pling();
       });
 
-      // Tap/klik pada langit: tembak shooting star dari titik, tunjuk wish berhampiran.
+      // Tap/klik pada langit
       function skyEvent(e){
-        const rect = canvas.getBoundingClientRect();
         const x = e.clientX ?? (e.touches && e.touches[0].clientX);
         const y = e.clientY ?? (e.touches && e.touches[0].clientY);
         if(x==null || y==null) return;
 
         shoot(x, y, -Math.PI/3 + (Math.random()*0.8 - 0.4));
-        const offsetY = Math.max(80, Math.min(H-120, y - 40));
+        const offsetY = Math.max(80, Math.min(window.innerHeight-120, y - 40));
         showWish(x, offsetY, WISHES[Math.floor(Math.random()*WISHES.length)]);
         pling();
       }
@@ -319,9 +351,75 @@
         pling();
       });
 
-      // First gesture primes audio on iOS
+      // Prime audio on first touch (iOS)
       window.addEventListener('touchstart', ()=>{ if(!audioCtx && soundOn){ audioCtx = new (window.AudioContext||window.webkitAudioContext)(); } }, {once:true, passive:true});
+
+      /* =========================
+         NEW: Auto shooting star (10–15s), Auto “F” (25–35s)
+         ========================= */
+      function autoShootLoop(){
+        const delay = 10000 + Math.random()*5000; // 10–15s
+        setTimeout(()=>{
+          const fromSide = Math.random() < 0.5;
+          const sx = fromSide ? -80 : window.innerWidth + 80;
+          const sy = 80 + Math.random()*(window.innerHeight*0.6);
+          const dir = fromSide ? (-Math.PI/6 - Math.random()*0.5) : (Math.PI - (-Math.PI/6 - Math.random()*0.5));
+          shoot(sx, sy, dir);
+          if(soundOn) pling();
+          autoShootLoop();
+        }, delay);
+      }
+      autoShootLoop();
+
+      const constLayer = document.getElementById('constLayer');
+      function showFConstellation(){
+        // saiz & posisi huruf F relatif ke tengah
+        const cx = window.innerWidth/2;
+        const cy = window.innerHeight/2 - 40;
+        const scale = Math.min(window.innerWidth, window.innerHeight) * 0.18; // saiz responsif
+
+        // Koordinat F dalam grid (unit: 1.0). Bentuk: batang vertikal + bar atas + bar tengah
+        const pts = [];
+        // batang vertikal (0 ≤ y ≤ 1.0, x=0)
+        for(let y=0;y<=10;y++) pts.push([0, y/10]);
+        // bar atas (x: 0→0.7 pada y=0)
+        for(let x=0;x<=7;x++) pts.push([x/10, 0]);
+        // bar tengah (x: 0→0.55 pada y=0.5)
+        for(let x=0;x<=5;x++) pts.push([x/10, 0.5]);
+
+        // tabur titik dengan animasi twinkleIn kemudian fade
+        const nodes=[];
+        pts.forEach((p,i)=>{
+          const dot = document.createElement('div');
+          dot.className = 'fstar';
+          // ubah dari grid (0..1) kepada piksel, dengan sedikit jitter kecil
+          const jitter = () => (Math.random()-0.5)*6;
+          const x = cx + (p[0]-0.05)*scale + jitter();
+          const y = cy + (p[1]-0.05)*scale + jitter();
+          dot.style.left = x+'px';
+          dot.style.top  = y+'px';
+          dot.style.animationDelay = (i*20)+'ms';
+          constLayer.appendChild(dot);
+          nodes.push(dot);
+        });
+
+        // tembak satu shooting star melintasi F
+        shoot(cx- scale*0.6, cy- scale*0.4, -Math.PI/4);
+        if(soundOn) pling();
+
+        // kekalkan 2.8s, kemudian fade & buang
+        setTimeout(()=> nodes.forEach(n=> n.classList.add('fade')), 2800);
+        setTimeout(()=> nodes.forEach(n=> n.remove()), 4200);
+      }
+
+      function autoFLoop(){
+        const delay = 25000 + Math.random()*10000; // 25–35s
+        setTimeout(()=>{
+          showFConstellation();
+          autoFLoop();
+        }, delay);
+      }
+      autoFLoop();
     </script>
   </body>
 </html>
-m:translate(-50%, -50%) translateY(16px
